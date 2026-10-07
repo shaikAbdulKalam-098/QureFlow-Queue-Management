@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "QureFlow"
+description = "A digital patient queue management app where patients get a token and track their place in line, while clinic staff and doctors manage queues and live wait estimates."
+version = "1.0.0"
+id = "artifacts/qureflow"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22042
+
+[services.development]
+run = "pnpm --filter @workspace/qureflow run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/qureflow", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/qureflow/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22042"
+BASE_PATH = "/"

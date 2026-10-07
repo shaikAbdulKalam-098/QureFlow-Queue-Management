@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="42" viewBox="0 0 180 42" fill="none">
+  <rect width="42" height="42" rx="13" fill="#2F6B4F"/>
+  <path d="M8.5 22h6.1l3.3-6.4 5.2 12.8 4.2-8.3h6.2" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="52" y="29" fill="#1F4D38" font-family="Manrope, sans-serif" font-size="24" font-weight="800" letter-spacing="-1.5">qureflow</text>
+  <circle cx="171.5" cy="26" r="2" fill="#7DA58B"/>
+</svg>

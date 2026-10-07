@@ -2,14 +2,26 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: QureFlow digital patient queue management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Current user and safe local demo sessions
+  - name: directory
+    description: Clinics, departments, doctors, and queues
+  - name: queue
+    description: Queue entries, tracking, and actions
+  - name: notifications
+    description: In-app notifications
+  - name: analytics
+    description: Clinic queue performance summaries
+  - name: admin
+    description: Administrator operations
 paths:
   /healthz:
     get:
@@ -24,7 +36,380 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the signed-in user profile and role
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/demo-session:
+    post:
+      operationId: createDemoSession
+      tags: [auth]
+      summary: Start a fictional role-based demo session in development
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoSessionInput"
+      responses:
+        "200":
+          description: Demo user session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      operationId: endDemoSession
+      tags: [auth]
+      summary: End a development demo session
+      responses:
+        "204":
+          description: Session ended
+  /directory:
+    get:
+      operationId: getDirectory
+      tags: [directory]
+      summary: List clinics, departments, doctors, and open queues
+      responses:
+        "200":
+          description: Queue directory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Directory"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [queue]
+      summary: Get role-specific dashboard data
+      responses:
+        "200":
+          description: Dashboard snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /history:
+    get:
+      operationId: getPatientHistory
+      tags: [queue]
+      summary: Get the signed-in patient's queue history
+      responses:
+        "200":
+          description: Patient visit history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /queue-entries:
+    get:
+      operationId: listQueueEntries
+      tags: [queue]
+      summary: List waiting and recent entries for staff or doctors
+      parameters:
+        - name: queueId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Queue entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueueEntry"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createQueueEntry
+      tags: [queue]
+      summary: Join an open queue and generate a digital token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueEntryInput"
+      responses:
+        "201":
+          description: Created token with server-calculated queue position and ETA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Patient already has an active token in this queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /queue-entries/{entryId}/track:
+    get:
+      operationId: trackQueueEntry
+      tags: [queue]
+      summary: Get the latest position, ETA, and state for a patient's token
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Live queue tracking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueEntry"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /queue-entries/{entryId}/actions:
+    post:
+      operationId: performQueueAction
+      tags: [queue]
+      summary: Call, start, complete, skip, recall, cancel, or reprioritize a queue entry
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueActionInput"
+      responses:
+        "200":
+          description: Updated queue entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /queues/{queueId}/simulate:
+    post:
+      operationId: simulateQueue
+      tags: [queue]
+      summary: Simulate consultation progress or a queue delay
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationInput"
+      responses:
+        "200":
+          description: Updated queue snapshot after simulation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List the signed-in user's recent notifications
+      responses:
+        "200":
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /notifications/{notificationId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark one notification as read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /analytics:
+    get:
+      operationId: getAnalytics
+      tags: [analytics]
+      summary: Queue performance metrics and hourly volume
+      responses:
+        "200":
+          description: Clinic analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get role and clinic administration summary
+      responses:
+        "200":
+          description: Admin counts and managed queue directory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List clinic user accounts for role administration
+      responses:
+        "200":
+          description: Clinic users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{userId}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [admin]
+      summary: Assign a user role and optional doctor profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/queues/{queueId}:
+    patch:
+      operationId: updateAdminQueue
+      tags: [admin]
+      summary: Open or close a clinic queue
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminQueueUpdate"
+      responses:
+        "200":
+          description: Updated queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
+  responses:
+    BadRequest:
+      description: Invalid request or queue transition
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Role is not allowed to perform this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +418,240 @@ components:
           type: string
       required:
         - status
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    DemoSessionInput:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [PATIENT, STAFF, DOCTOR, ADMIN]
+      required: [role]
+    CurrentUser:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        role: { type: string, enum: [PATIENT, STAFF, DOCTOR, ADMIN] }
+        email: { type: string }
+        doctorId: { type: ["integer", "null"] }
+      required: [id, name, role, email, doctorId]
+    Department:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+      required: [id, name]
+    Doctor:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        departmentId: { type: integer }
+        departmentName: { type: string }
+        averageDurationMinutes: { type: number }
+      required: [id, name, departmentId, departmentName, averageDurationMinutes]
+    Queue:
+      type: object
+      properties:
+        id: { type: integer }
+        clinicName: { type: string }
+        departmentId: { type: integer }
+        departmentName: { type: string }
+        doctorId: { type: integer }
+        doctorName: { type: string }
+        name: { type: string }
+        isOpen: { type: boolean }
+        waitingCount: { type: integer }
+        currentToken: { type: ["integer", "null"] }
+        averageDurationMinutes: { type: number }
+        delayMinutes: { type: integer }
+      required: [id, clinicName, departmentId, departmentName, doctorId, doctorName, name, isOpen, waitingCount, currentToken, averageDurationMinutes, delayMinutes]
+    Directory:
+      type: object
+      properties:
+        clinics:
+          type: array
+          items: { type: string }
+        departments:
+          type: array
+          items: { $ref: "#/components/schemas/Department" }
+        doctors:
+          type: array
+          items: { $ref: "#/components/schemas/Doctor" }
+        queues:
+          type: array
+          items: { $ref: "#/components/schemas/Queue" }
+      required: [clinics, departments, doctors, queues]
+    QueueEntryInput:
+      type: object
+      properties:
+        queueId: { type: integer }
+      required: [queueId]
+    QueueActionInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [CALL_NEXT, START, COMPLETE, SKIP, RECALL, CANCEL, CHANGE_PRIORITY]
+        priority:
+          type: string
+          enum: [NORMAL, PRIORITY, EMERGENCY]
+      required: [action]
+    SimulationInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [CONSULTATION, DELAY]
+        delayMinutes: { type: integer, minimum: 1, maximum: 180 }
+      required: [action]
+    QueueEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        tokenNumber: { type: integer }
+        queueId: { type: integer }
+        patientId: { type: integer }
+        patientName: { type: string }
+        doctorId: { type: integer }
+        doctorName: { type: string }
+        departmentName: { type: string }
+        priority: { type: string, enum: [NORMAL, PRIORITY, EMERGENCY] }
+        status: { type: string, enum: [WAITING, CALLED, IN_CONSULTATION, COMPLETED, SKIPPED, CANCELLED] }
+        position: { type: integer }
+        peopleAhead: { type: integer }
+        estimatedWaitMinutes: { type: integer }
+        joinedAt: { type: string, format: date-time }
+        calledAt: { type: ["string", "null"], format: date-time }
+        consultationStartedAt: { type: ["string", "null"], format: date-time }
+        completedAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: ["number", "null"] }
+      required: [id, tokenNumber, queueId, patientId, patientName, doctorId, doctorName, departmentName, priority, status, position, peopleAhead, estimatedWaitMinutes, joinedAt, calledAt, consultationStartedAt, completedAt, durationMinutes]
+    Dashboard:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/CurrentUser" }
+        activeEntry:
+          anyOf:
+            - $ref: "#/components/schemas/QueueEntry"
+            - type: "null"
+        queue:
+          anyOf:
+            - $ref: "#/components/schemas/Queue"
+            - type: "null"
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/QueueEntry" }
+        stats:
+          $ref: "#/components/schemas/DashboardStats"
+        recentNotifications:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+      required: [user, activeEntry, queue, entries, stats, recentNotifications]
+    DashboardStats:
+      type: object
+      properties:
+        patientsToday: { type: integer }
+        waitingNow: { type: integer }
+        completedToday: { type: integer }
+        cancelledToday: { type: integer }
+        emergencyCases: { type: integer }
+        averageWaitMinutes: { type: integer }
+        averageConsultationMinutes: { type: number }
+      required: [patientsToday, waitingNow, completedToday, cancelledToday, emergencyCases, averageWaitMinutes, averageConsultationMinutes]
+    HistoryEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        tokenNumber: { type: integer }
+        doctorName: { type: string }
+        departmentName: { type: string }
+        status: { type: string }
+        joinedAt: { type: string, format: date-time }
+        estimatedWaitMinutes: { type: integer }
+        durationMinutes: { type: ["number", "null"] }
+      required: [id, tokenNumber, doctorName, departmentName, status, joinedAt, estimatedWaitMinutes, durationMinutes]
+    Notification:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+        isRead: { type: boolean }
+        queueEntryId: { type: ["integer", "null"] }
+      required: [id, title, message, createdAt, isRead, queueEntryId]
+    HourlyVolume:
+      type: object
+      properties:
+        hour: { type: string }
+        count: { type: integer }
+      required: [hour, count]
+    Analytics:
+      type: object
+      properties:
+        stats: { $ref: "#/components/schemas/DashboardStats" }
+        hourlyVolume:
+          type: array
+          items: { $ref: "#/components/schemas/HourlyVolume" }
+        queueSizes:
+          type: array
+          items:
+            type: object
+            properties:
+              queueName: { type: string }
+              waiting: { type: integer }
+            required: [queueName, waiting]
+      required: [stats, hourlyVolume, queueSizes]
+    AdminOverview:
+      type: object
+      properties:
+        userCount: { type: integer }
+        patientCount: { type: integer }
+        staffCount: { type: integer }
+        doctorCount: { type: integer }
+        queues:
+          type: array
+          items: { $ref: "#/components/schemas/Queue" }
+      required: [userCount, patientCount, staffCount, doctorCount, queues]
+    AdminUser:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [PATIENT, STAFF, DOCTOR, ADMIN] }
+        doctorId: { type: ["integer", "null"] }
+      required: [id, name, email, role, doctorId]
+    UserRoleUpdate:
+      type: object
+      properties:
+        role: { type: string, enum: [PATIENT, STAFF, DOCTOR, ADMIN] }
+        doctorId: { type: ["integer", "null"] }
+      required: [role]
+    AdminQueueUpdate:
+      type: object
+      properties:
+        isOpen: { type: boolean }
+      required: [isOpen]
+    SimulationResult:
+      type: object
+      properties:
+        completedEntry:
+          anyOf:
+            - $ref: "#/components/schemas/QueueEntry"
+            - type: "null"
+        calledEntry:
+          anyOf:
+            - $ref: "#/components/schemas/QueueEntry"
+            - type: "null"
+        queue:
+          $ref: "#/components/schemas/Queue"
+        message: { type: string }
+      required: [completedEntry, calledEntry, queue, message]
 
